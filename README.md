@@ -35,7 +35,7 @@ To run the RAG Blueprint sandbox locally:
    ```bash
    git clone [[https://github.com/yourusername/rag-blueprint.git](https://github.com/yourusername/rag-blueprint.git)](https://github.com/babupallam/rag-blueprint.git)
    cd rag-blueprint
-````
+   ```
 
 2.  Install dependencies:
 
@@ -94,4 +94,3 @@ Once the app is running, use these scenarios to test the architecture's capabili
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
-```
