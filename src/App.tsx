@@ -20,7 +20,10 @@ import {
   Bot,
   Layers,
   Activity,
-  Code
+  Code,
+  ThumbsUp,
+  ThumbsDown,
+  CheckCircle2
 } from 'lucide-react';
 
 // --- Types ---
@@ -30,6 +33,7 @@ type Message = {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  feedback?: 'up' | 'down';
 };
 
 type PipelineStep = {
@@ -51,12 +55,11 @@ type JsonPayload = {
 // --- Initial Data ---
 
 const INITIAL_PIPELINE: PipelineStep[] = [
-  { id: 'gateway', label: 'Edge Gateway', status: 'idle', icon: ShieldCheck, description: 'Authentication & Rate Limiting' },
-  { id: 'cache', label: 'Semantic Cache', status: 'idle', icon: Zap, description: 'Redis Vector Similarity Search' },
-  { id: 'hyde', label: 'Query Transform', status: 'idle', icon: Search, description: 'Hypothetical Document Embeddings' },
-  { id: 'retrieval', label: 'Vector Retrieval', status: 'idle', icon: Database, description: 'Dense Passages Extraction' },
-  { id: 'rerank', label: 'Cross-Encoder', status: 'idle', icon: LineChart, description: 'Neural Re-ranking for Precision' },
-  { id: 'llm', label: 'Orchestrater', status: 'idle', icon: Cpu, description: 'GPT-4o Synthesis & Tool Use' },
+  { id: 'auth', label: 'Auth & Access Control', status: 'idle', icon: ShieldCheck, description: 'Role-Based Access Verification' },
+  { id: 'conversation', label: 'Conversation Service', status: 'idle', icon: Layers, description: 'History & Context Management' },
+  { id: 'embedding', label: 'Embedding Service', status: 'idle', icon: Search, description: 'Query Vectorization (text-embedding-v2)' },
+  { id: 'retriever', label: 'Retriever (Vector DB)', status: 'idle', icon: Database, description: 'Similarity Search & Chunk Extraction' },
+  { id: 'llm', label: 'LLM Gateway (Generation)', status: 'idle', icon: Cpu, description: 'Context Synthesis & Completion' },
 ];
 
 export default function App() {
@@ -118,12 +121,15 @@ export default function App() {
       updatePayloadForStep(steps[i].id, query);
       
       // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
+      await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 500));
       
       // Complete step
       steps[i] = { ...steps[i], status: 'completed' };
       setPipeline([...steps]);
     }
+
+    // 1.5-second simulated loading state before showing the final response
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     // Add Assistant Response
     const assistantMessage: Message = {
@@ -138,57 +144,39 @@ export default function App() {
 
   const updatePayloadForStep = (stepId: string, query: string) => {
     switch (stepId) {
-      case 'gateway':
-        // Already set in handleSend
-        break;
-      case 'cache':
+      case 'auth':
         setPayload({
-          metadata: {
-            cache_hit: false,
-            latency_ms: 12,
-            provider: "Redis-VL"
-          },
-          body: {
-            query_embedding: "[0.12, -0.45, 0.89, ...]",
-            threshold: 0.95
-          }
+          user: "u_884",
+          role: "employee",
+          access_scopes: ["public", "hr_docs"]
         });
         break;
-      case 'hyde':
+      case 'conversation':
         setPayload({
-          method: "HYDE_TRANSFORM",
-          input: query,
-          output: "A hypothetical HR policy document describing the updated employee benefits for 2026...",
-          prompt_tokens: 145
-        });
-        break;
-      case 'retrieval':
-        setPayload({
-          database: "Pinecone-Serverless",
-          top_k: 5,
-          namespace: "enterprise-docs-v2",
-          matches: [
-            { id: "doc_99", score: 0.88, text: "The new HR policy (v2.1) includes unlimited PTO..." },
-            { id: "doc_102", score: 0.84, text: "Health benefits have been expanded to include mental health support..." }
+          history: [
+            { role: "user", content: query }
           ]
         });
         break;
-      case 'rerank':
+      case 'embedding':
         setPayload({
-          model: "bge-reranker-large",
-          input_size: 5,
-          final_rank: [
-            { doc_id: "doc_99", old_score: 0.88, new_score: 0.94 },
-            { doc_id: "doc_102", old_score: 0.84, new_score: 0.91 }
+          model: "text-embedding-v2",
+          vector: [0.012, -0.045, 0.112, "... 765 more"]
+        });
+        break;
+      case 'retriever':
+        setPayload({
+          results: [
+            { id: "doc_77", score: 0.89, text: "The new HR policy states that all employees are eligible for dynamic benefits tracking starting FY2026..." },
+            { id: "doc_12", score: 0.74, text: "Standard PTO is allocated at 25 days per annum for full-time staff members..." }
           ]
         });
         break;
       case 'llm':
         setPayload({
-          model: "gpt-4o-2024-05-13",
-          system_prompt: "You are an enterprise HR assistant. Use the provided context to answer...",
-          context_used: "The new HR policy includes unlimited PTO and expanded mental health...",
-          tokens: { prompt: 1240, completion: 85 }
+          constructed_prompt: `User Query: ${query}\n\nContext Chunks:\n1. HR policy v2.4 updates...\n2. Standard PTO rules...\n\nInstructions: Answer accurately based ONLY on context.`,
+          model: "gpt-4o-enterprise",
+          temperature: 0.2
         });
         break;
     }
@@ -238,8 +226,20 @@ export default function App() {
                   className={`message ${m.role === 'user' ? 'message-user' : 'message-ai'}`}
                 >
                   <p className="text-[13px] leading-relaxed">{m.content}</p>
-                  <div className={`text-[10px] mt-1 font-mono opacity-50 ${m.role === 'user' ? 'text-white/70' : ''}`}>
-                    {m.timestamp}
+                  <div className={`flex items-center justify-between mt-1`}>
+                    <div className={`text-[10px] font-mono opacity-50 ${m.role === 'user' ? 'text-white/70' : ''}`}>
+                      {m.timestamp}
+                    </div>
+                    {m.role === 'assistant' && (
+                      <div className="flex gap-2">
+                        <button className="text-text-muted hover:text-primary transition-colors p-0.5">
+                          <ThumbsUp className="w-3 h-3" />
+                        </button>
+                        <button className="text-text-muted hover:text-red-500 transition-colors p-0.5">
+                          <ThumbsDown className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -295,9 +295,17 @@ export default function App() {
                   key={step.id} 
                   className={`pipeline-step ${step.status === 'completed' ? 'complete' : ''} ${step.status === 'processing' ? 'active' : ''}`}
                 >
-                  <div className="step-label">{step.label}</div>
+                  <div className="flex justify-between items-center">
+                    <div className="step-label">{step.label}</div>
+                    {step.id === 'auth' && step.status === 'completed' && (
+                      <CheckCircle2 className="w-4 h-4 text-accent animate-in fade-in zoom-in duration-300" />
+                    )}
+                  </div>
                   <div className="step-meta">
                     {step.status === 'processing' ? 'EXECUTING_KERNEL...' : 
+                     (step.id === 'retriever' && step.status === 'completed') ? (
+                       <span className="text-primary font-bold">2_CHUNKS_RETRIEVED</span>
+                     ) :
                      step.status === 'completed' ? 'NODE_SYNC_SUCCESS' : step.description}
                   </div>
                 </div>
