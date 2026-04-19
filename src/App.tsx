@@ -32,7 +32,10 @@ import {
   ChevronDown,
   HardDrive,
   BarChart3,
-  Play
+  Play,
+  BookOpen,
+  Info,
+  HelpCircle
 } from 'lucide-react';
 import { 
   LineChart as ReLineChart, 
@@ -110,9 +113,11 @@ export default function App() {
   });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isBlueprintMode, setIsBlueprintMode] = useState(false);
+  const [isHowToOpen, setIsHowToOpen] = useState(true);
   const [drawerTab, setDrawerTab] = useState<'indexer' | 'metrics'>('indexer');
   const [indexerLogs, setIndexerLogs] = useState<string[]>([]);
   const [isIndexing, setIsIndexing] = useState(false);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -169,6 +174,7 @@ export default function App() {
       // Set current step to processing
       steps[i] = { ...steps[i], status: 'processing' };
       setPipeline([...steps]);
+      setSelectedStepId(step.id);
       
       // Update Payload Inspector based on step
       updatePayloadForStep(steps[i].id, query);
@@ -199,13 +205,14 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, 1200));
 
         // Fallback success
-        setPayload({
+        const fallbackPayload = {
           status: "200 OK",
           provider: config.secondaryProvider,
           constructed_prompt: `User Query: ${query}\n\nContext Chunks: ...`,
           model: "claude-3-5-sonnet",
           latency_ms: 1420
-        });
+        };
+        setPayload(fallbackPayload);
 
         // Continue as completed after fallback
         steps[i] = { ...steps[i], status: 'completed', description: `Fallback Active: ${config.secondaryProvider}` };
@@ -359,9 +366,9 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-[320px_360px_1fr] overflow-hidden">
+      <div className="flex-1 grid grid-cols-12 overflow-hidden">
         {/* --- COLUMN 1: CLIENT (CHAT) --- */}
-        <aside className="bg-bg-sidebar border-r border-border-color flex flex-col overflow-hidden">
+        <aside className="col-span-4 bg-bg-sidebar border-r border-border-color flex flex-col overflow-hidden">
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
             <AnimatePresence initial={false}>
               {messages.length === 0 && (
@@ -432,7 +439,7 @@ export default function App() {
         </aside>
 
         {/* --- COLUMN 2: ORCHESTRATOR (VISUALIZER) --- */}
-        <main className="bg-white border-r border-border-color p-6 overflow-y-auto">
+        <main className="col-span-3 bg-white border-r border-border-color p-6 overflow-y-auto">
           <div className="flex justify-between items-center mb-6">
             <span className="text-[12px] font-bold uppercase tracking-wider text-text-muted">Pipeline Execution Trace</span>
             <span className={`text-[12px] font-bold uppercase tracking-wider ${isProcessing ? 'text-primary' : 'text-text-muted opacity-40'}`}>
@@ -442,15 +449,31 @@ export default function App() {
 
           <div className="space-y-0 translate-x-2">
             {pipeline.map((step, idx) => {
+              const isActive = selectedStepId === step.id;
               return (
-                <div 
+                <button 
                   key={step.id} 
-                  className={`pipeline-step ${step.status === 'completed' ? 'complete' : ''} ${step.status === 'processing' ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedStepId(step.id);
+                    // Look up dummy data for this step if messages exist
+                    if (messages.length > 0) {
+                      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                      updatePayloadForStep(step.id, lastUserMsg?.content || '');
+                    }
+                  }}
+                  className={`w-full text-left pipeline-step transition-all duration-200 outline-none
+                    ${step.status === 'completed' ? 'complete' : ''} 
+                    ${step.status === 'processing' ? 'active' : ''}
+                    ${isActive ? 'bg-blue-50/50 scale-[1.02] border-solid border-primary/40' : 'hover:bg-slate-50'}
+                  `}
                 >
                   <div className="flex justify-between items-center">
-                    <div className="step-label">{step.label}</div>
+                    <div className={`step-label ${isActive ? 'text-primary font-bold' : ''}`}>{step.label}</div>
                     {step.id === 'auth' && step.status === 'completed' && (
                       <CheckCircle2 className="w-4 h-4 text-accent animate-in fade-in zoom-in duration-300" />
+                    )}
+                    {isActive && (
+                      <div className="w-1.5 h-1.5 bg-primary rounded-full" />
                     )}
                   </div>
                   <div className="step-meta">
@@ -460,14 +483,14 @@ export default function App() {
                      ) :
                      step.status === 'completed' ? 'NODE_SYNC_SUCCESS' : step.description}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         </main>
 
         {/* --- COLUMN 3: PAYLOAD INSPECTOR --- */}
-        <section className="bg-bg-terminal flex flex-col overflow-hidden">
+        <section className="col-span-5 bg-bg-terminal flex flex-col overflow-hidden">
           <header className="px-5 py-3 bg-[#1e293b] border-b border-[#334155] flex items-center justify-between shrink-0">
             <span className="text-[11px] font-bold text-white tracking-widest uppercase opacity-80">Payload Inspector</span>
             <div className="bg-[#334155] text-white text-[10px] px-2 py-1 rounded font-bold">
@@ -795,82 +818,149 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
       {/* --- TDD BLUEPRINT OVERLAY --- */}
       <AnimatePresence>
         {isBlueprintMode && (
-          <>
+          <div className="fixed inset-0 z-[100] pointer-events-none">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-[2px] pointer-events-none"
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"
             />
             
-            {/* Box 1: Chat (Application Layer) */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed left-[20px] top-[76px] bottom-[60px] w-[280px] border-2 border-dashed border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.4)] z-50 pointer-events-none rounded-lg"
-            >
-              <div className="absolute -top-3 -left-3 bg-cyan-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Layer 01</div>
-              <div className="absolute top-1/2 -right-[180px] -translate-y-1/2 w-[160px] bg-slate-800 border border-cyan-500/30 p-3 rounded-md shadow-xl">
-                <p className="text-[10px] leading-relaxed text-cyan-50 border-cyan-500/20">
-                  <span className="text-cyan-400 font-bold block mb-1">1. Application Layer:</span>
-                  Manages conversational state, access control, and exposes evaluation surfaces.
-                </p>
-              </div>
-            </motion.div>
+            <div className="absolute inset-0 grid grid-cols-12 pt-[56px] pb-[40px]">
+              {/* Box 1: Chat (Application Layer) */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="col-span-4 border-r-2 border-dashed border-cyan-400/60 shadow-[inset_0_0_40px_rgba(34,211,238,0.1)] relative"
+              >
+                <div className="absolute top-4 left-4 bg-cyan-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">LAYER_01: APP</div>
+                <div className="absolute top-[140px] right-[-140px] w-[220px] bg-slate-800 border-l-4 border-cyan-400 p-4 rounded-r-lg shadow-2xl pointer-events-auto z-[110]">
+                  <p className="text-[11px] leading-relaxed text-cyan-50">
+                    <span className="text-cyan-400 font-bold block mb-1 uppercase tracking-wider text-[10px]">1. Application Layer</span>
+                    Manages conversational state, access control, and exposes evaluation surfaces.
+                  </p>
+                </div>
+              </motion.div>
 
-            {/* Box 2: Orchestrator (Model Layer) */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed left-[330px] top-[76px] bottom-[60px] w-[340px] border-2 border-dashed border-purple-400 shadow-[0_0_15px_rgba(192,132,252,0.4)] z-50 pointer-events-none rounded-lg"
-            >
-              <div className="absolute -top-3 -left-3 bg-purple-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Layer 02</div>
-              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 translate-y-full mt-4 w-[240px] bg-slate-800 border border-purple-500/30 p-3 rounded-md shadow-xl text-center">
-                <p className="text-[10px] leading-relaxed text-purple-50">
-                  <span className="text-purple-400 font-bold block mb-1">2. Model Layer:</span>
-                  Wraps external APIs behind a unified gateway. Implements RAG and multi-model routing.
-                </p>
-              </div>
-            </motion.div>
+              {/* Box 2: Orchestrator (Model Layer) */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="col-span-3 border-r-2 border-dashed border-purple-400/60 shadow-[inset_0_0_40px_rgba(192,132,252,0.1)] relative"
+              >
+                <div className="absolute top-4 left-4 bg-purple-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">LAYER_02: MODEL</div>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[220px] bg-slate-800 border-t-4 border-purple-400 p-4 rounded-b-lg shadow-2xl text-center pointer-events-auto z-[110]">
+                  <p className="text-[11px] leading-relaxed text-purple-50">
+                    <span className="text-purple-400 font-bold block mb-1 uppercase tracking-wider text-[10px]">2. Model Layer</span>
+                    Wraps external APIs behind a unified gateway. Implements RAG and multi-model routing.
+                  </p>
+                </div>
+              </motion.div>
 
-            {/* Box 3: Infrastructure (Bottom Drawer) */}
+              {/* Box 4: Safety & Quality (Payload Inspector) */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="col-span-5 border-dashed border-amber-400/60 shadow-[inset_0_0_40px_rgba(251,191,36,0.1)] relative"
+              >
+                <div className="absolute top-4 right-4 bg-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg">MODULE_06: SAFETY</div>
+                <div className="absolute top-1/2 -left-[140px] -translate-y-1/2 w-[200px] bg-slate-800 border-r-4 border-amber-400 p-4 rounded-l-lg shadow-2xl pointer-events-auto z-[110]">
+                  <p className="text-[11px] leading-relaxed text-amber-50">
+                    <span className="text-amber-400 font-bold block mb-1 uppercase tracking-wider text-[10px]">6.3 Quality & Safety</span>
+                    Input/Output Validation. Enforces guardrails in preprocessing and postprocessing.
+                  </p>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Box 3: Infrastructure (Bottom Drawer) overlay on the absolute bottom */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
-              className="fixed left-[20px] right-[20px] bottom-[15px] h-[70px] border-2 border-dashed border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.4)] z-50 pointer-events-none rounded-lg"
+              className="absolute left-0 right-0 bottom-0 h-10 border-t-2 border-dashed border-emerald-400 bg-emerald-400/10 flex items-center justify-center"
             >
-              <div className="absolute -top-3 -left-3 bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Layer 03</div>
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 -translate-y-full w-[380px] bg-slate-800 border border-emerald-500/30 p-3 rounded-md shadow-xl text-center">
-                <p className="text-[10px] leading-relaxed text-emerald-50">
-                  <span className="text-emerald-400 font-bold block mb-1">3. Infrastructure Layer:</span>
-                  Provides containerized services for vector search, background jobs, and observability.
+              <div className="absolute -top-16 bg-slate-800 border-b-4 border-emerald-500 p-4 rounded-t-lg shadow-2xl text-center pointer-events-auto">
+                <p className="text-[11px] leading-relaxed text-emerald-50">
+                  <span className="text-emerald-400 font-bold block mb-1 uppercase tracking-wider text-[10px]">3. Infrastructure Layer</span>
+                  Provides services for vector search, background jobs, and observability.
                 </p>
               </div>
             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-            {/* Box 4: Safety & Quality (Payload Inspector) */}
+      {/* --- HOW TO USE DEMO MODAL --- */}
+      <AnimatePresence>
+        {isHowToOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-md">
             <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed right-[20px] top-[76px] bottom-[100px] left-[690px] border-2 border-dashed border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)] z-50 pointer-events-none rounded-lg"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 20, opacity: 0 }}
+              className="w-full max-w-2xl bg-white shadow-2xl rounded-2xl overflow-hidden border border-border-color"
             >
-              <div className="absolute -top-3 -left-3 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Module 06</div>
-              <div className="absolute top-1/2 left-[-160px] -translate-y-1/2 w-[180px] bg-slate-800 border border-amber-500/30 p-3 rounded-md shadow-xl">
-                <p className="text-[10px] leading-relaxed text-amber-50">
-                  <span className="text-amber-400 font-bold block mb-1">6.3 Quality & Safety:</span>
-                  Input and Output Validation. Enforces guardrails in preprocessing and postprocessing.
-                </p>
+              <div className="bg-primary p-8 text-white relative">
+                <button 
+                  onClick={() => setIsHowToOpen(false)}
+                  className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-3 mb-2">
+                  <BookOpen className="w-6 h-6" />
+                  <span className="text-[12px] font-bold uppercase tracking-[0.2em] opacity-80">Developer Guide</span>
+                </div>
+                <h2 className="text-3xl font-bold tracking-tight">Enterprise RAG Visualizer</h2>
+                <p className="mt-2 text-blue-100 max-w-md">Technical demonstration of a resilient, observable AI architecture. Follow these scenarios to explore the platform.</p>
+              </div>
+
+              <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6 bg-white">
+                <div className="space-y-3">
+                  <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center font-bold">01</div>
+                  <h4 className="font-bold text-sm text-slate-900">RAG Knowledge Retrieval</h4>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">
+                    Input: <code className="bg-slate-100 px-1 rounded">"What is the new HR policy?"</code>
+                  </p>
+                  <p className="text-[11px] text-slate-400 italic font-medium">Watch the "Retriever" step and check the Payload Inspector for source chunks.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center font-bold">02</div>
+                  <h4 className="font-bold text-sm text-slate-900">Circuit Breaker Failover</h4>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">
+                    Enable <span className="font-bold">"Simulate Timeout"</span> in the Config Service and send a query.
+                  </p>
+                  <p className="text-[11px] text-slate-400 italic font-medium">Observe Step 5 fail and immediately route to the secondary LLM provider.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center font-bold">03</div>
+                  <h4 className="font-bold text-sm text-slate-900">Background Ingestion</h4>
+                  <p className="text-[12px] text-slate-500 leading-relaxed">
+                    Expand the <span className="font-bold">Observability Drawer</span> and trigger document ingestion.
+                  </p>
+                  <p className="text-[11px] text-slate-400 italic font-medium">Follow the real-time terminal logs as documents are parsed and vectorized.</p>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
+                <button 
+                  onClick={() => setIsHowToOpen(false)}
+                  className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+                >
+                  Start Demo Exploration
+                </button>
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
     </div>
