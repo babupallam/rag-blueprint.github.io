@@ -109,6 +109,7 @@ export default function App() {
     simulateTimeout: false
   });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isBlueprintMode, setIsBlueprintMode] = useState(false);
   const [drawerTab, setDrawerTab] = useState<'indexer' | 'metrics'>('indexer');
   const [indexerLogs, setIndexerLogs] = useState<string[]>([]);
   const [isIndexing, setIsIndexing] = useState(false);
@@ -336,6 +337,13 @@ export default function App() {
           RAG-CORE ARCH v2.4
         </div>
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setIsBlueprintMode(!isBlueprintMode)}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded transition-all text-[11px] font-bold ${isBlueprintMode ? 'bg-cyan-500 border-cyan-400 text-white shadow-[0_0_10px_rgba(6,182,212,0.5)]' : 'bg-bg-main border-border-color text-text-muted hover:text-primary hover:bg-white'}`}
+          >
+            <Code className="w-3.5 h-3.5" />
+            TDD_BLUEPRINT
+          </button>
           <button 
             onClick={() => setIsConfigOpen(true)}
             className="flex items-center gap-2 px-3 py-1.5 bg-bg-main border border-border-color rounded hover:bg-white transition-all text-[11px] font-bold text-text-muted hover:text-primary mr-2"
@@ -785,6 +793,84 @@ export default function App() {
               </footer>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- TDD BLUEPRINT OVERLAY --- */}
+      <AnimatePresence>
+        {isBlueprintMode && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-[2px] pointer-events-none"
+            />
+            
+            {/* Box 1: Chat (Application Layer) */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed left-[20px] top-[76px] bottom-[60px] w-[280px] border-2 border-dashed border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.4)] z-50 pointer-events-none rounded-lg"
+            >
+              <div className="absolute -top-3 -left-3 bg-cyan-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Layer 01</div>
+              <div className="absolute top-1/2 -right-[180px] -translate-y-1/2 w-[160px] bg-slate-800 border border-cyan-500/30 p-3 rounded-md shadow-xl">
+                <p className="text-[10px] leading-relaxed text-cyan-50 border-cyan-500/20">
+                  <span className="text-cyan-400 font-bold block mb-1">1. Application Layer:</span>
+                  Manages conversational state, access control, and exposes evaluation surfaces.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Box 2: Orchestrator (Model Layer) */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed left-[330px] top-[76px] bottom-[60px] w-[340px] border-2 border-dashed border-purple-400 shadow-[0_0_15px_rgba(192,132,252,0.4)] z-50 pointer-events-none rounded-lg"
+            >
+              <div className="absolute -top-3 -left-3 bg-purple-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Layer 02</div>
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 translate-y-full mt-4 w-[240px] bg-slate-800 border border-purple-500/30 p-3 rounded-md shadow-xl text-center">
+                <p className="text-[10px] leading-relaxed text-purple-50">
+                  <span className="text-purple-400 font-bold block mb-1">2. Model Layer:</span>
+                  Wraps external APIs behind a unified gateway. Implements RAG and multi-model routing.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Box 3: Infrastructure (Bottom Drawer) */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="fixed left-[20px] right-[20px] bottom-[15px] h-[70px] border-2 border-dashed border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.4)] z-50 pointer-events-none rounded-lg"
+            >
+              <div className="absolute -top-3 -left-3 bg-emerald-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Layer 03</div>
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 -translate-y-full w-[380px] bg-slate-800 border border-emerald-500/30 p-3 rounded-md shadow-xl text-center">
+                <p className="text-[10px] leading-relaxed text-emerald-50">
+                  <span className="text-emerald-400 font-bold block mb-1">3. Infrastructure Layer:</span>
+                  Provides containerized services for vector search, background jobs, and observability.
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Box 4: Safety & Quality (Payload Inspector) */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed right-[20px] top-[76px] bottom-[100px] left-[690px] border-2 border-dashed border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.4)] z-50 pointer-events-none rounded-lg"
+            >
+              <div className="absolute -top-3 -left-3 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-tighter">Module 06</div>
+              <div className="absolute top-1/2 left-[-160px] -translate-y-1/2 w-[180px] bg-slate-800 border border-amber-500/30 p-3 rounded-md shadow-xl">
+                <p className="text-[10px] leading-relaxed text-amber-50">
+                  <span className="text-amber-400 font-bold block mb-1">6.3 Quality & Safety:</span>
+                  Input and Output Validation. Enforces guardrails in preprocessing and postprocessing.
+                </p>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
