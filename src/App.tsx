@@ -27,8 +27,29 @@ import {
   Settings,
   X,
   AlertTriangle,
-  ZapOff
+  ZapOff,
+  ChevronUp,
+  ChevronDown,
+  HardDrive,
+  BarChart3,
+  Play
 } from 'lucide-react';
+import { 
+  LineChart as ReLineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  BarChart as ReBarChart,
+  Bar,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  ReferenceLine
+} from 'recharts';
 
 // --- Types ---
 
@@ -87,13 +108,24 @@ export default function App() {
     maxTokenBudget: 4096,
     simulateTimeout: false
   });
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<'indexer' | 'metrics'>('indexer');
+  const [indexerLogs, setIndexerLogs] = useState<string[]>([]);
+  const [isIndexing, setIsIndexing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [indexerLogs]);
 
   const handleSend = async () => {
     if (!input.trim() || isProcessing) return;
@@ -240,6 +272,52 @@ export default function App() {
         break;
     }
   };
+
+  const handleTriggerIndexing = async () => {
+    if (isIndexing) return;
+    setIsIndexing(true);
+    setIndexerLogs([]);
+    const logs = [
+      "[INFO] Polling Document Store... Found 1 new PDF",
+      "[INFO] Initializing OCR & Extraction Kernels...",
+      "[INFO] Parsing & Chunking... generated 15 chunks",
+      "[INFO] Verifying Content Safety Scopes...",
+      "[INFO] Calling Embedding Service API...",
+      "[INFO] Normalizing Vector Space...",
+      "[INFO] Upserting to PostgreSQL Vector Extension... Success."
+    ];
+
+    for (const log of logs) {
+      setIndexerLogs(prev => [...prev, log]);
+      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 500));
+    }
+    setIsIndexing(false);
+  };
+
+  // --- Chart Data ---
+  const costData = [
+    { name: '10:00', cost: 0.002 },
+    { name: '10:05', cost: 0.005 },
+    { name: '10:10', cost: 0.003 },
+    { name: '10:15', cost: 0.008 },
+    { name: '10:20', cost: 0.004 },
+    { name: '10:25', cost: 0.006 },
+    { name: '10:30', cost: 0.005 },
+  ];
+
+  const latencyData = [
+    { name: 'Req 1', retrieval: 180, generation: 1100 },
+    { name: 'Req 2', retrieval: 250, generation: 1400 },
+    { name: 'Req 3', retrieval: 210, generation: 900 },
+    { name: 'Req 4', retrieval: 450, generation: 1600 },
+    { name: 'Req 5', retrieval: 195, generation: 1250 },
+  ];
+
+  const feedbackData = [
+    { name: 'Accepted', value: 85 },
+    { name: 'Rejected', value: 15 },
+  ];
+  const COLORS = ['#10b981', '#ef4444'];
 
   const getMockResponse = (q: string) => {
     const query = q.toLowerCase();
@@ -441,6 +519,163 @@ export default function App() {
           </footer>
         </section>
       </div>
+
+      {/* --- INFRASTRUCTURE & OBSERVABILITY DRAWER --- */}
+      <motion.div 
+        animate={{ height: isDrawerOpen ? '320px' : '40px' }}
+        className="fixed bottom-0 left-0 right-0 bg-white border-t border-border-color shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)] z-40 flex flex-col overflow-hidden"
+      >
+        <header 
+          onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+          className="h-[40px] px-6 flex items-center justify-between cursor-pointer hover:bg-bg-main transition-colors shrink-0"
+        >
+          <div className="flex items-center gap-3">
+            <Activity className="w-4 h-4 text-primary" />
+            <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">Infrastructure & Observability</span>
+            {isIndexing && (
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
+                <span className="text-[9px] font-mono text-primary">INDEXER_JOB_RUNNING</span>
+              </div>
+            )}
+          </div>
+          {isDrawerOpen ? <ChevronDown className="w-4 h-4 opacity-40" /> : <ChevronUp className="w-4 h-4 opacity-40" />}
+        </header>
+
+        <div className="flex-1 flex overflow-hidden">
+          {/* Side Nav for Drawer */}
+          <aside className="w-[180px] border-r border-border-color bg-bg-main p-2 space-y-1">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setDrawerTab('indexer'); }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded text-[11px] font-bold transition-all ${drawerTab === 'indexer' ? 'bg-white text-primary shadow-sm' : 'text-text-muted hover:bg-white/50'}`}
+            >
+              <HardDrive className="w-3.5 h-3.5" />
+              BACKGROUND_INDEXER
+            </button>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setDrawerTab('metrics'); }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded text-[11px] font-bold transition-all ${drawerTab === 'metrics' ? 'bg-white text-primary shadow-sm' : 'text-text-muted hover:bg-white/50'}`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              METRICS_DASHBOARD
+            </button>
+          </aside>
+
+          {/* Content Area */}
+          <main className="flex-1 overflow-hidden">
+            {drawerTab === 'indexer' ? (
+              <div className="h-full flex flex-col">
+                <div className="p-4 border-b border-border-color flex justify-between items-center bg-white">
+                  <span className="text-[10px] font-mono text-text-muted uppercase">Batch Pipeline Terminal</span>
+                  <button 
+                    onClick={handleTriggerIndexing}
+                    disabled={isIndexing}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 text-white rounded text-[10px] font-bold hover:bg-emerald-600 disabled:opacity-50 transition-all shadow-sm"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    TRIGGER DOCUMENT INGESTION
+                  </button>
+                </div>
+                <div 
+                  ref={terminalRef}
+                  className="flex-1 bg-bg-terminal p-4 font-mono text-[12px] overflow-y-auto"
+                >
+                  {indexerLogs.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-gray-700 opacity-40 italic">
+                      Ready for ingestion command...
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {indexerLogs.map((log, i) => (
+                        <div key={i} className="text-[#94a3b8]">
+                          <span className="text-emerald-500 mr-2">➜</span>
+                          {log}
+                        </div>
+                      ))}
+                      {isIndexing && (
+                        <div className="text-white animate-pulse">
+                          <span className="text-emerald-500 mr-2">➜</span>
+                          [PROC] System processing binary data...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="h-full grid grid-cols-3 p-4 gap-4 overflow-y-auto">
+                {/* Cost Chart */}
+                <div className="bg-white border border-border-color rounded-lg p-3 flex flex-col shadow-sm">
+                  <header className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-bold uppercase text-text-muted">Cost Constraints ($)</span>
+                    <span className="text-[10px] font-mono text-text-muted opacity-50">REAL_TIME_COST</span>
+                  </header>
+                  <div className="flex-1 min-h-[140px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ReLineChart data={costData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" hide />
+                        <YAxis tick={{fontSize: 9}} width={35} />
+                        <Tooltip contentStyle={{fontSize: '10px'}} />
+                        <ReferenceLine y={0.01} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'MAX', position: 'right', fill: '#ef4444', fontSize: 8 }} />
+                        <Line type="monotone" dataKey="cost" stroke="#2563eb" strokeWidth={2} dot={false} />
+                      </ReLineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Latency Chart */}
+                <div className="bg-white border border-border-color rounded-lg p-3 flex flex-col shadow-sm">
+                  <header className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-bold uppercase text-text-muted">Latency Breakdown (ms)</span>
+                    <span className="text-[10px] font-mono text-text-muted opacity-50">E2E_TIME</span>
+                  </header>
+                  <div className="flex-1 min-h-[140px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ReBarChart data={latencyData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" hide />
+                        <YAxis tick={{fontSize: 9}} width={35} />
+                        <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{fontSize: '10px'}} />
+                        <Legend iconSize={8} wrapperStyle={{fontSize: '9px', paddingTop: '5px'}} />
+                        <Bar dataKey="retrieval" fill="#10b981" stackId="a" name="Retrieval" />
+                        <Bar dataKey="generation" fill="#2563eb" stackId="a" name="Generation" />
+                      </ReBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Feedback Chart */}
+                <div className="bg-white border border-border-color rounded-lg p-3 flex flex-col shadow-sm">
+                  <header className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-bold uppercase text-text-muted">Feedback Store</span>
+                    <span className="text-[10px] font-mono text-text-muted opacity-50">SATISFACTION</span>
+                  </header>
+                  <div className="flex-1 min-h-[140px] flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RePieChart>
+                        <Pie
+                          data={feedbackData}
+                          innerRadius={35}
+                          outerRadius={50}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {feedbackData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{fontSize: '10px'}} />
+                        <Legend iconSize={8} wrapperStyle={{fontSize: '9px'}} layout="vertical" align="right" verticalAlign="middle" />
+                      </RePieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      </motion.div>
 
       {/* --- CONFIGURATION MODAL --- */}
       <AnimatePresence>
